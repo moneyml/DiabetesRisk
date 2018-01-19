@@ -11,16 +11,17 @@ from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestRegressor
 from sklearn import metrics
 import xgboost as xgb
+import matplotlib.pyplot as plt
 import datetime
 from sklearn.linear_model import LassoLars,LinearRegression
 
 
 
 
-def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,ins_rmse = 0,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
+def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,ins_rmse = 0,metric_decrease=True,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
                          'colsample_bytree':0.8}):  
     kf = KFold(n_splits=n_splits,shuffle=True)
-    dpred = xgb.DMatrix(dfPred[predictors].values,label=[0]*len(dfPred),missing=np.nan)
+    dpred = xgb.DMatrix(dfPred[predictors].values,label=[0]*len(dfPred),missing=np.nan,feature_names=predictors)
     imp = pd.DataFrame({'variable':predictors,'lk':['f'+str(i) for i in range(len(predictors))]})
     round=0
     if weight>1:
@@ -36,8 +37,8 @@ def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,in
         train_wgt = dfTrain.loc[train_index,'wgt']
         test_wgt = dfTrain.loc[test_index,'wgt']
 
-        dtrain = xgb.DMatrix(train_X.values, label=train_Y.values,weight=train_wgt, missing = np.nan)
-        dtest = xgb.DMatrix(test_X.values, label=test_Y.values,weight=test_wgt, missing = np.nan)
+        dtrain = xgb.DMatrix(train_X.values, label=train_Y.values,weight=train_wgt, missing = np.nan,feature_names=predictors)
+        dtest = xgb.DMatrix(test_X.values, label=test_Y.values,weight=test_wgt, missing = np.nan,feature_names=predictors)
         param = params 
         evallist  = [(dtrain,'train'),(dtest,'eval')]  
         num_round = 5000
@@ -49,11 +50,19 @@ def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,in
         model = xgb.train(param,dtrain,num_round, evallist,early_stopping_rounds=early_stop,evals_result=evals_dict,verbose_eval =100)
         performance_df = pd.DataFrame({'train':evals_dict['train'][metric],'eval':evals_dict['eval'][metric]})
         performance_df =performance_df.loc[performance_df['train']>=ins_rmse]
-        #bst_tree = len(performance_df)-1-early_stop
-        bst_tree = performance_df.loc[performance_df['eval']==performance_df['eval'].min()].index.tolist()[0] + 1
+        if metric_decrease:
+            bst_tree = performance_df.loc[performance_df['eval']==performance_df['eval'].min()].index.tolist()[0] + 1
+        else:
+            bst_tree = performance_df.loc[performance_df['eval']==performance_df['eval'].max()].index.tolist()[0] + 1
         print('Best tree is %d, performance is %f, %f'%(bst_tree,performance_df.loc[bst_tree-1,'train'],performance_df.loc[bst_tree-1,'eval']))
         pred_test = model.predict(dtest,ntree_limit =bst_tree)
-
+        
+        ###plot the importance
+        fig, ax = plt.subplots(figsize=(12,18))
+        xgb.plot_importance(model,max_num_features=50,height=0.8, ax=ax)
+        plt.show()
+        
+        
         tmp_imp = pd.DataFrame(model.get_score(importance_type='gain'),index=['imp_fold%d'%round]).T
         tmp_imp['lk'] = tmp_imp.index
         imp = imp.merge(tmp_imp,'left','lk').fillna(0)
