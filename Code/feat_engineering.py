@@ -57,10 +57,11 @@ def pcent_single_col(dataset,var_list,keep_list = []):
     return dataset[keep_list]
 
 
-def pcent_by_other_col(dataset,var_dict,keep_list = []):
+def pcent_by_other_col(data,var_dict,keep_list = []):
+    dataset = data.copy()
     for tool,pro in var_dict.items():
         try:
-            groups = dataset.groupby(['TOOL_'+tool[-3:]])
+            groups = dataset.groupby([tool])
         except:
             continue
         for var in pro:

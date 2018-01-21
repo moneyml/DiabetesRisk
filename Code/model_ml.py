@@ -20,7 +20,7 @@ from sklearn.linear_model import LassoLars,LinearRegression
 
 def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,ins_rmse = 0,metric_decrease=True,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
                          'colsample_bytree':0.8}):  
-    kf = KFold(n_splits=n_splits,shuffle=True)
+    kf = KFold(n_splits=n_splits,shuffle=True,random_state=615)
     dpred = xgb.DMatrix(dfPred[predictors].values,label=[0]*len(dfPred),missing=np.nan,feature_names=predictors)
     imp = pd.DataFrame({'variable':predictors,'lk':['f'+str(i) for i in range(len(predictors))]})
     round=0
@@ -58,14 +58,14 @@ def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,in
         pred_test = model.predict(dtest,ntree_limit =bst_tree)
         
         ###plot the importance
-        fig, ax = plt.subplots(figsize=(12,18))
+        '''fig, ax = plt.subplots(figsize=(12,18))
         xgb.plot_importance(model,max_num_features=50,height=0.8, ax=ax)
-        plt.show()
+        plt.show()'''
         
         
-        tmp_imp = pd.DataFrame(model.get_score(importance_type='gain'),index=['imp_fold%d'%round]).T
-        tmp_imp['lk'] = tmp_imp.index
-        imp = imp.merge(tmp_imp,'left','lk').fillna(0)
+        tmp_imp = pd.DataFrame(model.get_score(),index=['imp_fold%d'%round]).T
+        tmp_imp['variable'] = tmp_imp.index
+        imp = imp.merge(tmp_imp,'left','variable').fillna(0)
 
 
         pred_score = model.predict(dpred,ntree_limit =bst_tree)
