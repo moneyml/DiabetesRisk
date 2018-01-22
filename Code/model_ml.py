@@ -14,31 +14,33 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 import datetime
 from sklearn.linear_model import LassoLars,LinearRegression
+from imblearn.over_sampling import SMOTE
 
 
 
-
-def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,ins_rmse = 0,metric_decrease=True,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
-                         'colsample_bytree':0.8}):  
+def xgb_kfold(Train,Pred,predictors,n_splits=5,early_stop = 10,ins_rmse = 0,imbalance = None,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
+                         'colsample_bytree':0.8}):
+    dfTrain = Train.copy()
+    dfPred = Pred.copy()
     kf = KFold(n_splits=n_splits,shuffle=True,random_state=615)
     dpred = xgb.DMatrix(dfPred[predictors].values,label=[0]*len(dfPred),missing=np.nan,feature_names=predictors)
     imp = pd.DataFrame({'variable':predictors,'lk':['f'+str(i) for i in range(len(predictors))]})
     round=0
-    if weight>1:
-        dfTrain['wgt'] = 1+(weight-1)*(np.abs(dfTrain['Y'] - dfTrain['Y'].quantile(0.5))/np.abs(dfTrain['Y'] - dfTrain['Y'].quantile(0.5)).max())
-    else:
-        dfTrain['wgt'] = 1
     for train_index, test_index in kf.split(dfTrain):
         round+=1
+        trainTmp = dfTrain.loc[train_index,:]
         train_X = dfTrain.loc[train_index,predictors]
         test_X = dfTrain.loc[test_index,predictors]
         train_Y = dfTrain.loc[train_index,'Y']
         test_Y = dfTrain.loc[test_index,'Y']
-        train_wgt = dfTrain.loc[train_index,'wgt']
-        test_wgt = dfTrain.loc[test_index,'wgt']
+        ###case in imbalance model
+        if imbalance =='smote':
+            sm = SMOTE(random_state=202)
+            train_X,train_Y = sm.fit_sample(trainTmp[predictors],trainTmp['Y'])
+        
 
-        dtrain = xgb.DMatrix(train_X.values, label=train_Y.values,weight=train_wgt, missing = np.nan,feature_names=predictors)
-        dtest = xgb.DMatrix(test_X.values, label=test_Y.values,weight=test_wgt, missing = np.nan,feature_names=predictors)
+        dtrain = xgb.DMatrix(train_X, label=train_Y, missing = np.nan,feature_names=predictors)
+        dtest = xgb.DMatrix(test_X.values, label=test_Y.values, missing = np.nan,feature_names=predictors)
         param = params 
         evallist  = [(dtrain,'train'),(dtest,'eval')]  
         num_round = 5000
@@ -46,11 +48,12 @@ def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,in
         if 'eval_metric' in params:
             metric = params['eval_metric']
         else:
+            print('No metric defined, will use rmse in the model')
             metric ='rmse'
         model = xgb.train(param,dtrain,num_round, evallist,early_stopping_rounds=early_stop,evals_result=evals_dict,verbose_eval =100)
         performance_df = pd.DataFrame({'train':evals_dict['train'][metric],'eval':evals_dict['eval'][metric]})
         performance_df =performance_df.loc[performance_df['train']>=ins_rmse]
-        if metric_decrease:
+        if metric!='auc':
             bst_tree = performance_df.loc[performance_df['eval']==performance_df['eval'].min()].index.tolist()[0] + 1
         else:
             bst_tree = performance_df.loc[performance_df['eval']==performance_df['eval'].max()].index.tolist()[0] + 1
@@ -75,7 +78,10 @@ def xgb_kfold(dfTrain,dfPred,predictors,n_splits=5,weight = 1,early_stop = 10,in
         else:
             test_result = pd.concat([test_result,pd.DataFrame({'ID':dfTrain.loc[test_index,'ID'].values,'score':pred_test,'target':test_Y})],axis=0)
             result = result.merge(pd.DataFrame({'ID':dfPred['ID'],'Score_%d'%round:pred_score}),'inner','ID')
-    print("Test MSE:",metrics.mean_squared_error(test_result['target'], test_result['score']))
+    if metric == 'logloss':
+        print("Test LogLoss:",metrics.log_loss(test_result['target'], test_result['score']))
+    else:
+        print("Test MSE:",metrics.mean_squared_error(test_result['target'], test_result['score']))
     return test_result,result,imp
 
 
