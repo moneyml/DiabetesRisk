@@ -19,10 +19,10 @@ from imblearn.over_sampling import SMOTE
 
 
 def xgb_kfold(Train,Pred,predictors,n_splits=5,early_stop = 10,ins_rmse = 0,imbalance = None,params = {'max_depth':3, 'eta':0.01, 'silent':0,'objective':'reg:linear','lambda':1,'subsample':0.8,
-                         'colsample_bytree':0.8}):
+                         'colsample_bytree':0.8},seed=615):
     dfTrain = Train.copy()
     dfPred = Pred.copy()
-    kf = KFold(n_splits=n_splits,shuffle=True,random_state=615)
+    kf = KFold(n_splits=n_splits,shuffle=True,random_state=seed)
     dpred = xgb.DMatrix(dfPred[predictors].values,label=[0]*len(dfPred),missing=np.nan,feature_names=predictors)
     imp = pd.DataFrame({'variable':predictors,'lk':['f'+str(i) for i in range(len(predictors))]})
     round=0

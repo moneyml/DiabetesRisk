@@ -98,3 +98,5 @@ ENV/
 # mypy
 .mypy_cache/
 Cache/pcent_by_other.csv
+Cache/pcent_by_other_bin10.csv
+Cache/pcent_by_other_bin15.csv
