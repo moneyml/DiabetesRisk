@@ -12,8 +12,54 @@ import datetime
 import scipy.stats as stats
 from scipy import special
 from functools import reduce
+from sklearn.ensemble import RandomForestRegressor
 
 
+
+def fillna_RF(df,predictors,recurrent = False,seed = 202):
+    dfTrain = df.copy()
+    dfTrain.fillna(dfTrain.median(),inplace = True)
+    baseVar = []
+    fillVar = []
+    for var in predictors:
+        if dfTrain[var].isnull().sum()==0:
+            baseVar.append(var)
+        else:
+            fillVar.append(var)
+    fillVar = dfTrain[fillVar].isnull().sum().reset_index().sort_values(0,ascending=True)['index'].values.tolist()
+    while len(fillVar)>0:
+        missVar = fillVar[0]
+        trainX = dfTrain.loc[~dfTrain[missVar].isnull(),baseVar]
+        trainY = dfTrain.loc[~dfTrain[missVar].isnull(),missVar]
+        testX = dfTrain.loc[dfTrain[missVar].isnull(),baseVar]
+        rf = RandomForestRegressor(n_estimators=5000, max_features='sqrt',max_depth=5, random_state=seed)
+        rf.fit(trainX,trainY)
+        result = rf.predict(testX)
+        if dfTrain[missVar].nunique()<=20:
+            print("%s is a category variable, will fill by the nearest cate"%missVar)
+            unique = dfTrain[missVar].unique()
+            unique.sort()
+            for i in range(len(result)):
+                t = -999999
+                pred = result[i]
+                for j in range(len(unique)):
+                    value = unique[j]
+                    gap = value-pred
+                    if t*gap<=0:
+                        if gap<=-1*t:
+                            result[i] = value
+                        else:
+                            result[i] = unique[j-1]
+                    else:
+                        t = gap      
+        dfTrain.loc[dfTrain[missVar].isnull(),baseVar] = result
+        fillVar.remove(missVar)
+        if recurrent:
+            baseVar.append(missVar)
+    return dfTrain
+        
+        
+        
 
 def count_single_col(dataset,var_list,keep_list = []):
     for var in var_list:

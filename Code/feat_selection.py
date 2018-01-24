@@ -15,7 +15,6 @@ from sklearn.ensemble import RandomForestRegressor
 def RF_selection(Train,predictors,seed = 202):
     dfTrain = Train.copy()
     dfTrain.fillna(dfTrain.median(),inplace = True)
-    print(dfTrain.isnull().sum().sum())
     rf = RandomForestRegressor(n_estimators=5000, max_features='sqrt',  max_depth=4, random_state=seed)
     rf.fit(dfTrain[predictors], dfTrain['Y'])  
     

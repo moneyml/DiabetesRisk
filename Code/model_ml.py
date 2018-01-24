@@ -37,6 +37,7 @@ def xgb_kfold(Train,Pred,predictors,n_splits=5,early_stop = 10,ins_rmse = 0,imba
         if imbalance =='smote':
             sm = SMOTE(random_state=202)
             train_X,train_Y = sm.fit_sample(trainTmp[predictors],trainTmp['Y'])
+
         
 
         dtrain = xgb.DMatrix(train_X, label=train_Y, missing = np.nan,feature_names=predictors)
