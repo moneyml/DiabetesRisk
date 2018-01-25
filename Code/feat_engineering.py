@@ -13,6 +13,11 @@ import scipy.stats as stats
 from scipy import special
 from functools import reduce
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+
+from keras.models import Sequential
+from keras.models import Model
+from keras.layers import Dense, Dropout, Activation, BatchNormalization
 
 
 
@@ -150,7 +155,28 @@ def var_minus(dataset,var_list,keep_list = [],criteria=0.8):
     for var_list in range_list:
         for var in var_list:
             base_list.remove(var)'''
+            
+def NN_DAE(dataset,predictors):
+    data = dataset.copy()
+    data = data.reset_index(drop=True)
+    scale = StandardScaler()
+    data[predictors] = scale.fit_transform(data[predictors])
+    featNum = len(predictors)
+    model = Sequential()
+    model.add(Dense(int(featNum/2),activation='relu',input_shape=(featNum,),kernel_initializer='glorot_normal'))
+    model.add(Dense(int(featNum/3),activation='relu',kernel_initializer='glorot_normal'))
+    model.add(Dense(int(featNum/4),activation='relu',kernel_initializer='glorot_normal'))
+    model.add(Dense(int(featNum/3),activation='relu',kernel_initializer='glorot_normal'))
+    model.add(Dense(int(featNum/2),activation='relu',kernel_initializer='glorot_normal'))
+    model.add(Dense(featNum,activation='relu'))
+    model.compile(optimizer='adam',loss='mse')
+    model.fit(data[predictors].values,data[predictors].values,epochs=5,batch_size=5,verbose=2)
     
+    layer_feature = Model(inputs=model.input, outputs=model.get_layer(index=int(len(model.layers)/2)).output)
+    features_array = layer_feature.predict(data[predictors].values, batch_size=1)
+    column_name = ['Feat_' + str(i + 1) for i in range(features_array.shape[1])]
+    dfFeat = pd.DataFrame(features_array,index=data['ID'],columns=column_name).reset_index()
+    return dfFeat
     
 ###contingency
 __all__ = ['margins', 'expected_freq', 'chi2_contingency']
